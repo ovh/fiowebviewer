@@ -1,0 +1,528 @@
+{% extends "base.html" %}
+{% block title %}Fio Web Viewer result browser -- {{fio_result.fio_name}} ( {% for tag in fio_result.tags_list %} {{tag}}{% endfor %} ) {% endblock %}
+{% block style %}
+<script src="{{ url_for('static', filename='js/rename.js') }}"></script>
+    <style>
+        .fio-plot {
+            display: inline-block;
+        }
+        .plot-container {
+            white-space: nowrap;
+        }
+        .fio-table-outer{
+            margin-left: 10px;
+        }
+        .fio-table{
+            min-width: 350px;
+            max-width: 350px;
+        }
+        .table-names {
+            background-color: #eaeaea;
+            color: #333333;
+            text-align: center;
+        }
+        .table-bordered > thead > tr > th.table-head {
+            border-style: solid;
+            border-color: #666666;
+            font-size: 150%;
+        }
+        .table-property-name {
+            font-weight: bold;
+        }
+        .write .table-property-name{
+            background-color: #d8d8d8;
+        }
+        td.empty, td.empty:hover{
+            background: #fff;
+        }
+        .table-bordered > tbody > tr > td.empty{
+            border: none;
+        }
+    </style>
+{% endblock %}
+{% block content %}
+    <nav id="navbar" class="navbar navbar-default">
+        <h5>{{fio_result.fio_name}} ({% for tag in fio_result.tags_list %} {{tag}}{% endfor %} )</h5>
+        <ul class="navbar-nav">
+            <li><a href="/">Index</a></li>
+            <li class="links">
+                <ul>
+                    <li>
+                        <ul>
+                            <li>Table:</li>
+                            {% for fio_group_report in fio_result.group_reports %}
+                            <li><a class="btn btn-xs btn-jobname" href="#job{{fio_group_report.group_id}}">{{fio_group_report.jobname}}</a></li>
+                            <li><a class="btn btn-xs" href="#READ{{fio_group_report.group_id}}">READ</a></li>
+                            <li><a class="btn btn-xs" href="#WRITE{{fio_group_report.group_id}}">WRITE</a></li>
+                            <li><a class="btn btn-xs" href="#IO DEPTH{{fio_group_report.group_id}}">IO DEPTH</a></li>
+                            <li><a class="btn btn-xs" href="#CPU USAGE{{fio_group_report.group_id}}">CPU USAGE</a></li>
+                            <li><a class="btn btn-xs" href="#lat (usec){{fio_group_report.group_id}}">lat (usec)</a></li>
+                            <li><a class="btn btn-xs" href="#lat (msec){{fio_group_report.group_id}}">lat (msec)</a></li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                    <li>
+                        <ul>
+                            <li>Plots:</li>
+                            {% for log in fio_result.group_reports[0].jobs[0].logs %}
+                                <li><a class="btn btn-xs" href="#plot{{log.log_type}}anchor">{{log.log_type}}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+            <li><a href="/summary/{{fio_result.dir_name}}/detailed">Switch to job view</a></li>
+            <li><button type="button" id="bn-fio-reset" class="btn btn-xs">Reset zoom</button></li>
+        </ul>
+        <button id="bn-edit" type="button" class="btn btn-md pull-right">Edit</button>
+    </nav>
+    <div class="container-fluid">
+       <div class="row">
+            <div class="col-sm-12 col-md-3 col-lg-3 fio-table">
+            {% for fio_group_report in fio_result.group_reports %}
+            <table class="table table-bordered table-striped table-hover table-condensed fio-table">
+                <tbody>
+                    <tr>
+                        <td id="Info" class="table-names table-property-name">Info:<a id="job{{fio_group_report.group_id}}" class="anchor-link"></a></td>
+                        <td>{{fio_group_report.jobname}}</td>
+                        <td>{{fio_group_report.fio_version}}</td>
+                        <td>groupid={{fio_group_report.group_id}}</td>
+                        <td>err={{fio_group_report.error}}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="5">
+                            <button type="button" id="bn-fio-userargs" class="btn btn-info btn-xs">Show Fio user args</button>
+                            <button type="button" id="bn-fio-output" class="btn btn-info btn-xs">Show Fio output</button>
+                            <button type="button" id="bn-csv-links" class="btn btn-info btn-xs">Show links to CSV</button>
+                            <div id="fio-userargs" style="display: none">
+                                <pre id="fio-input" style="white-space: pre-wrap">{{fio_result.fio_userargs}}</pre>
+                            </div>
+                            <div id="fio-output" style="display: none">
+                                <pre id="fio-output" style="width: 350px; height: 700px">{{fio_result.fio_output}}</pre>
+                            </div>
+                            <div id="csv-links" style="display: none">
+                            <a href="/api/{{fio_result.dir_name}}/targz">Download all as tar.gz</a>
+                            {% for fio_group_report in fio_result.group_reports %}
+                                {% for job in fio_group_report.jobs %}
+                                    <ul class="list-unstyled">
+                                    {% for log in job.logs %}
+                                    <li>
+                                    {% for iotype in ['read', 'write'] %}
+                                        {% if log.exists[iotype] %}
+                                            <a href="/api/{{fio_result.dir_name}}/{{job.job_id}}/{{log.log_type}}.csv?io_type={{iotype}}">({{iotype}}) (Job: {{job.job_id}}) {{log.log_type}}.csv</a></li>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                    </li>
+                                    </ul>
+                                {% endfor %}
+                            {% endfor %}
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th colspan="5" class="table-names table-property-name">READ:<a id="READ{{fio_group_report.group_id}}" class="anchor-link"></a></th>
+                    </tr>
+                    <tr>
+                        <td class="table-names table-property-name"></td>
+                        <td class="table-names table-property-name">io</td>
+                        <td class="table-names table-property-name">bw</td>
+                        <td class="table-names table-property-name">iops</td>
+                        <td class="table-names table-property-name">runt</td>
+                    </tr>
+                    <tr>
+                        <td class="table-names table-property-name"></td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_total_io_kb')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_bw_kbps')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.read_iops}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_runtime_ms')}}
+                        </td>
+                    <tr>
+                        <td class="empty"></td>
+                        <td class="table-names table-property-name">MIN</td>
+                        <td class="table-names table-property-name">MAX</td>
+                        <td class="table-names table-property-name">AVG</td>
+                        <td class="table-names table-property-name">STDEV</td>
+                    </tr>
+                    <tr>
+                        <td class="table-names table-property-name">SLAT</td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_submission_lat_min_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_submission_lat_max_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_submission_lat_mean_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_submission_lat_stddev_usec')}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="table-names table-property-name">CLAT</td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_min_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_max_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_mean_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_stddev_usec')}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="table-names table-property-name">LAT</td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_total_lat_min_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_total_lat_max_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_total_lat_mean_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_total_lat_stddev_usec')}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="5" class="table-names table-property-name">BW (read was: {{fio_group_report.read_bw_aggr_of_total_per}}%)</td>
+                    </tr>
+                    <tr>
+                        <td>min</td>
+                        <td>max</td>
+                        <td>per</td>
+                        <td>avg</td>
+                        <td>stdev</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            {{fio_group_report.convert_unit('read_bw_min_kbps')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_bw_max_kbps')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.read_bw_aggr_of_total_per}} %
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_bw_mean_kbps')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_bw_stddev_kbps')}}
+                        </td>
+                    </tr>
+                        <td colspan="5" class="table-names table-property-name">CLAT PERCENTILES</td>
+                    </tr>
+                    <tr>
+                        <td>1.00th</td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_percentiles_usec', 1.0)}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>5.00th</td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_percentiles_usec', 5.0)}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>10.00th</td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_percentiles_usec', 10.0)}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>20.00th</td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_percentiles_usec', 20.0)}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>30.00th</td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_percentiles_usec', 30.0)}}
+                        </td>
+                    </tr>
+                    {% for key in [1.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 95.0, 99.0, 99.5, 99.9, 99.95, 99.99] %}
+                    <tr>
+                        <td>{{key}}th</td>
+                        <td>
+                            {{fio_group_report.convert_unit('read_completion_lat_percentiles_usec', key)}}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="write">
+                        <th colspan="5" class="table-names table-property-name">WRITE:<a id="WRITE{{fio_group_report.group_id}}" class="anchor-link"></a></th>
+                    </tr>
+                    <tr class="write">
+                        <td class="table-names table-property-name"></td>
+                        <td class="table-names table-property-name">io</td>
+                        <td class="table-names table-property-name">bw</td>
+                        <td class="table-names table-property-name">iops</td>
+                        <td class="table-names table-property-name">runt</td>
+                    </tr>
+                    <tr class="write">
+                        <td class="table-names table-property-name"></td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_total_io_kb')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_bw_kbps')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.write_iops}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_runtime_ms')}}
+                        </td>
+                    <tr class="write">
+                        <td class="empty"></td>
+                        <td class="table-names table-property-name">MIN</td>
+                        <td class="table-names table-property-name">MAX</td>
+                        <td class="table-names table-property-name">AVG</td>
+                        <td class="table-names table-property-name">STDEV</td>
+                    </tr>
+                    <tr class="write">
+                        <td class="table-names table-property-name">SLAT</td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_submission_lat_min_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_submission_lat_max_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_submission_lat_mean_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_submission_lat_stddev_usec')}}
+                        </td>
+                    </tr>
+                    <tr class="write">
+                        <td class="table-names table-property-name">CLAT</td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_completion_lat_min_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_completion_lat_max_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_completion_lat_mean_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_completion_lat_stddev_usec')}}
+                        </td>
+                    </tr>
+                    <tr class="write">
+                        <td class="table-names table-property-name">LAT</td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_total_lat_min_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_total_lat_max_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_total_lat_mean_usec')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_total_lat_stddev_usec')}}
+                        </td>
+                    </tr>
+                    <tr class="write">
+                        <td colspan="5" class="table-names table-property-name">BW  (write was: {{fio_group_report.write_bw_aggr_of_total_per}}%)</td>
+                    </tr>
+                    <tr class="write">
+                        <td>min</td>
+                        <td>max</td>
+                        <td>per</td>
+                        <td>avg</td>
+                        <td>stdev</td>
+                    </tr>
+                    <tr class="write">
+                        <td>
+                            {{fio_group_report.convert_unit('write_bw_min_kbps')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_bw_max_kbps')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.write_bw_aggr_of_total_per}} %
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_bw_mean_kbps')}}
+                        </td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_bw_stddev_kbps')}}
+                        </td>
+                    </tr>
+                    <tr class="write">
+                        <td colspan="5" class="table-names table-property-name">CLAT PERCENTILES</td>
+                    </tr>
+                    {% for key in [1.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 95.0, 99.0, 99.5, 99.9, 99.95, 99.99] %}
+                    <tr class="write">
+                        <td>{{key}}th</td>
+                        <td>
+                            {{fio_group_report.convert_unit('write_completion_lat_percentiles_usec', key)}}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr>
+                        <th colspan="2" class="table-names table-property-name">IO DEPTH<a id="IO DEPTH{{fio_group_report.group_id}}" class="anchor-link"></a></th>
+                        <td class="empty"></td>
+                        <th colspan="2" class="table-names table-property-name">CPU USAGE<a id="CPU USAGE{{fio_group_report.group_id}}" class="anchor-link"></a></th>
+                    </tr>
+                    <tr>
+                        <td>&lt;=1</td>
+                        <td>
+                            {{fio_group_report.io_depth_distrib['1']}}%
+                        <td class="empty"></td>
+                        <td>usr</td>
+                        <td>
+                            {{fio_group_report.cpu_user}}%
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td>
+                            {{fio_group_report.io_depth_distrib['2']}}%
+                        </td>
+                        <td class="empty"></td>
+                        <td>sys</td>
+                        <td>
+                            {{fio_group_report.cpu_system}}%
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td>
+                            {{fio_group_report.io_depth_distrib['4']}}%
+                        </td>
+                        <td class="empty"></td>
+                        <td>ctx</td>
+                        <td>
+                            {{fio_group_report.cpu_context_switches}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>8</td>
+                        <td>
+                            {{fio_group_report.io_depth_distrib['8']}}%
+                        </td>
+                        <td class="empty"></td>
+                        <td>majf</td>
+                        <td>
+                            {{fio_group_report.cpu_major_page_faults}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>16</td>
+                        <td>
+                            {{fio_group_report.io_depth_distrib['16']}}%
+                        </td>
+                        <td class="empty"></td>
+                        <td>minf</td>
+                        <td>
+                            {{fio_group_report.cpu_minor_page_faults}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>32</td>
+                        <td>
+                            {{fio_group_report.io_depth_distrib['32']}}%
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>&gt;=64</td>
+                        <td>
+                            {{fio_group_report.io_depth_distrib['64']}}%
+                        </td>
+                    </tr>
+                    <tr>
+                        <th colspan="2" class="table-names table-property-name">lat (usec)<a id="lat (usec){{fio_group_report.group_id}}" class="anchor-link"></a></th>
+                        <td class="empty"></td>
+                        <th colspan="2" class="table-names table-property-name">lat (msec)<a id="lat (msec){{fio_group_report.group_id}}" class="anchor-link"></a></th>
+                    </tr>
+                    <tr>
+                        <td>&lt;=2</td>
+                        <td>
+                            {{fio_group_report.io_lat_distrib_usec['2']}}%
+                        </td>
+                        <td class="empty"></td>
+                        <td>&lt;=2</td>
+                        <td>
+                            {{fio_group_report.io_lat_distrib_msec['2']}}%
+                        </td>
+                    </tr>
+                    {% for key in ['4', '10', '20', '50', '100', '250', '500', '750', '1000'] %}
+                    <tr>
+                        <td>{{key}}</td>
+                        <td>{{fio_group_report.io_lat_distrib_usec[key]}}%</td>
+                        <td class="empty"></td>
+                        <td>{{key}}</td>
+                        <td>{{fio_group_report.io_lat_distrib_msec[key]}}%</td>
+                    </tr>
+                    {% endfor %}
+                    <tr>
+                        <td colspan="3" class="empty"></td>
+                        <td>2000</td>
+                        <td>
+                            {{fio_group_report.io_lat_distrib_msec['2000']}}%
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="3" class="empty"></td>
+                        <td>&gt;=2000</td>
+                        <td>
+                            {{fio_group_report.io_lat_distrib_msec['2001']}}%
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            {% endfor %}
+             </div>
+             <div class="col-sm-12 col-md-9 col-lg-9">
+             <div class="fio-plot-container">
+             {% for log in fio_result.group_reports[0].jobs[0].logs %}
+                 <div id="plot{{log.log_type}}wrapper" class="fio-plot-box">
+                     <a id="plot{{log.log_type}}anchor" class="anchor-link"></a>
+                     <div id="plot{{log.log_type}}"></div>
+                     <div id="plot{{log.log_type}}loader" style="display:none" class="plot-loader">Loading {{log.log_type}}...<div class="loader"></div></div>
+                     <div id="plot{{log.log_type}}error" style="display:none" class="plot-loader">Cannot load {{log.log_type}}</div>
+                 </div>
+             {% endfor %}
+             </div>
+         </div>
+    </div>
+    <div id="edit-popup" class="edit-popup" style="display: none">
+        <button id="bn-edit-close" type="button" class="close pull-right" aria-label="Close"><span aria-hidden="true">&times;</span></button><br>
+        <input id="name" name="name" value="" />
+        <button id="change-name" type="button" class="btn btn-sm">Change name</button>
+        <p id="change-name"></p>
+    </div>
+    <script>
+        declareEditPopup("{{fio_result}}");
+
+        $( "#bn-fio-userargs" ).click(function() {
+          $( "#fio-userargs" ).toggle();
+        });
+        $( "#bn-csv-links" ).click(function() {
+          $( "#csv-links" ).toggle();
+        });
+        $( "#bn-fio-output" ).click(function() {
+          $( "#fio-output" ).toggle();
+        });
+        var results = ["{{fio_result}}"]
+        startPlotting("aggregated");
+    </script>
+{% endblock %}

@@ -1,0 +1,132 @@
+nav.navbar{
+    top: 0;
+    position: fixed;
+    width: 100%;
+    margin-bottom: 0;
+    z-index: 999;
+}
+nav ul{
+    padding-left: 0;
+}
+nav > ul.navbar-nav > li{
+    padding: 12px 15px 0 15px;
+    display: inline-block;
+}
+nav > ul.navbar-nav > li.button{
+    padding-top: 10px;
+}
+
+nav > ul.navbar-nav > li.links{
+    padding: 5px 5px 0 5px;
+}
+nav > button{
+    margin: 5px 5px 0 5px;
+}
+
+nav > ul.navbar-nav > li >a{
+    font-size: 18pt;
+}
+.navbar-default .navbar-nav > li > a{
+    color: #333;
+}
+nav > ul > li > ul > li {
+    list-style: none outside none;
+    margin-bottom: 3px;
+}
+nav > ul > li > ul > li > ul > li{
+    display: inline-block;
+}
+nav .btn-xs{
+    background-color: #eaeaea;
+}
+nav .btn-jobname{
+    color: #000;
+}
+.navbar h5{
+    margin-left: 10px;
+    margin-top: 10px;
+    font-weight: bold;
+    color: #333;
+}
+
+.edit-popup{
+    position: fixed;
+    text-align: center;
+    top: 100px;
+    left: 42%;
+    width: 500px;
+    min-height: 150px;
+    background-color: #fff;
+    border: 1px solid #999;
+    border-radius: 7px;
+    padding: 15px;
+}
+.edit-popup input{
+    width: 350px;
+}
+#fio-table tr th{
+    position:relative;
+}
+.fio-table tr th, .fio-plot-box, .fio-table tr td.table-property-name{
+    position:relative;
+}
+
+.anchor-link{
+    position:absolute;
+    top: -50px;
+}
+.fio-plot{
+    min-width: 800px;
+    min-height: 600px;
+    padding: 10px;
+    background-color: #999;
+    margin: 5px;
+    border-radius: 3px;
+}
+.fio-tests, .fio-jobs{
+    background-color: #e8f4ff;
+    padding: 5px;
+    margin: 5px auto;
+    width: 100%;
+}
+.fio-plot-container{
+    margin-left: 15px;
+}
+h3.fio-heading{
+    display: inline;
+}
+.plot-loader{
+    width: 30%;
+    min-height: 150px;
+    margin: 0 auto;
+    font-size: 18pt;
+    text-align: center;
+}
+.fio-results ul{
+    font-size: 16pt;
+    margin: 0;
+    list-style: none outside none;
+}
+.fio-result ul li{
+    margin: 5px 0;
+}
+.loader {
+    margin:0 auto;
+    border: 16px solid #f3f3f3;
+    border-radius: 50%;
+    border-top: 16px solid #337ab7;
+    width: 120px;
+    height: 120px;
+    -webkit-animation: spin 2s linear infinite;
+    animation: spin 2s linear infinite;
+}
+
+@-webkit-keyframes spin {
+    0% { -webkit-transform: rotate(0deg); }
+    100% { -webkit-transform: rotate(360deg); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+
+set -eu -o pipefail
+
+# Defult settings
+FIO_USER_ARGS=""
+FIO_RESULT_UPLOAD_URL="${FIO_RESULT_UPLOAD_URL:-{{upload_url}}}"
+CLEANUP=${CLEANUP:-yes}
+TAGS=($(hostname))
+TMP_DIR=""
+
+# Print help message
+function usage()
+{
+    echo -n "Usage: fio-webviewer.sh [WEBVIEWER OPTION]... [FIO OPTION]... [FIO JOB]... <FIO JOB FILE>
+Runs fio and send generated data to fio_webviewer server.
+
+  WEBVIEWER OPTIONS:
+  --webviewer-tag    Tag result with given string
+  --webviewer-name   Name result with given string
+  -h, --help    Display this help and exit
+
+  FIO OPTIONS/JOBS:
+  For full fio options/jobs list run fio --help
+
+webviewer and fio options are optional, fio job parameters are required to run.
+This script adds  --group_reporting and --log_avg_msec=1000 by default to all jobs.
+If you want to override this behaviour set your own --log_avg_msec=
+with desired value in script arguments.
+"
+    exit 0
+}
+
+function log {
+    echo "fio-webviewer: ${*}" >&2
+}
+
+function die {
+    log "$1"
+    cleanup
+    exit 1
+}
+
+function cleanup {
+    if [[ "$CLEANUP" != "yes" ]]; then
+        return
+    fi
+    if [[ -n "${TMP_DIR}" ]]; then
+        log "Deleting temporary dir '${TMP_DIR}'"
+        find "${TMP_DIR}" -delete
+    fi
+}
+
+function trap_sigint {
+    log "Aborted."
+    while true; do
+        read -p "Do you want to send results? [y/n] [Y]" ans
+        case $ans in
+            "" | [Yy]* ) break;;
+            [Nn]* ) cleanup && exit 0;;
+            * ) continue;;
+        esac
+    done
+}
+
+# Check if parameters input is empty, show help if yes
+if [[ "$#" -eq 0 ]]; then
+    usage
+fi
+
+# Sort fio-webviewer parameters from fio's
+while (("$#")); do
+    case $1 in
+        --webviewer-tag | --webviewer-tag=*)
+            TAG="${1#*--webviewer-tag=}"
+            TAG="${TAG#*--webviewer-tag}"
+            TAGS+=("${TAG} $(echo "${@:2}" | sed  's/--.*//')")
+            shift
+        ;;
+        --webviewer-name | --webviewer-name=*)
+            NAME="${1#*--webviewer-name=}"
+            NAME="${NAME#*--webviewer-name}"
+            NAMES+=("${NAME} $(echo "${@:2}" | sed  's/--.*//')")
+            shift
+        ;;
+        --name | --name=*)
+            FIO_USER_ARGS+=" ${1} $(echo "${@:2}" | sed  's/--.*//')"`
+            `"--log_avg_msec=1000 --group_reporting"
+            shift
+        ;;
+        -h | --help)
+            usage
+            shift
+        ;;
+        --*)
+            FIO_USER_ARGS+=" ${1} $(echo "${@:2}" | sed  's/--.*//')"
+            shift
+        ;;
+        *)
+            if [[ -f "$1" ]]; then
+                if [[ ! -x "${FIO:-$(which fio)}" ]]; then
+                    usage
+                fi
+                FIO="${FIO:-$(which fio)}"
+                FIO_USER_ARGS_FILE="$($FIO --showcmd $1 || printf "" )"
+                FIO_USER_ARGS+="${FIO_USER_ARGS_FILE:3}"
+                shift
+            else
+                shift
+            fi
+        ;;
+    esac
+done
+
+# Check if we can initialize fio and curli, and initialize if yes
+if [[ ! -x "${FIO:-$(which fio)}" || ! -x "${CURL:-$(which curl)}" ]]; then
+    die "'fio' and/or 'curl' is not available"
+fi
+FIO="${FIO:-$(which fio)}"
+CURL="${CURL:-$(which curl)}"
+
+# Create temp dir to store fio output files
+TMP_DIR="$(mktemp -d --suffix .fio-webviewer)" || \
+die "Failed to create temporary directory"
+
+FIO_TAGS="${TMP_DIR}/fio-webviewer.tags"
+FIO_NAME="${TMP_DIR}/fio-webviewer.name"
+FIO_PREFIX="${TMP_DIR}/fio-webviewer"
+FIO_OUTPUT_FILE="${FIO_PREFIX}.input"
+FIO_JSON_OUTPUT_FILE="${FIO_PREFIX}.input.json"
+FIO_USER_ARGS_FILE="${FIO_PREFIX}.userargs"
+
+# Save tags to a file
+for i in "${!TAGS[@]}"; do
+    echo "${TAGS[i]}" >> "${FIO_TAGS}"
+done
+
+# Save names to a file
+for i in "${!NAMES[@]}"; do
+    echo "${NAMES[i]}" >> "${FIO_NAME}"
+done
+
+# Check if fio arguments start with whitespace,
+# if yes, remove it, so it don`t fail fopen
+if [[ "${FIO_USER_ARGS:0:1}" = [[:space:]] ]]; then
+    FIO_USER_ARGS="${FIO_USER_ARGS:1}"
+fi
+
+# Store user args with any cfg file options converted to cmd args
+echo "$FIO_USER_ARGS" >"$FIO_USER_ARGS_FILE"
+
+echo "Fio args: ${FIO_USER_ARGS}"
+
+# Check if we are running in interactive shell
+if ! tty -s; then
+    trap "" SIGINT
+else
+    trap trap_sigint SIGINT
+fi
+# Run fio
+$FIO \
+    --output-format=normal,json \
+    --output="${FIO_OUTPUT_FILE}" \
+    --write_bw_log="${FIO_PREFIX}" \
+    --write_lat_log="${FIO_PREFIX}" \
+    --write_iops_log="${FIO_PREFIX}" \
+    $FIO_USER_ARGS && FIO_ERROR="0" || \
+    FIO_ERROR="$?" && log "Unexpected error when running fio"
+
+# Check if fio run properly
+if [[ $FIO_ERROR -eq 1 ]]; then
+   echo "Fio has encountered an unexpected problem, returning"`
+   `"Error Code: $FIO_ERROR"
+   exit $FIO_ERROR
+fi
+# Restore default signal handler for SIGINT
+trap - SIGINT
+#Check if .log files are empty. If yes, delete them
+for file in ${TMP_DIR}/*.log; do
+    if [[ ! -s "${file}" ]]; then
+        rm "${file}"
+    fi
+done
+# Separate different types of IO
+for file in ${TMP_DIR}/*.log; do
+    grep -i ".*, .*, 0, .*" "${file}" > "${file}".read || log "no read logged in ${file}"
+    grep -i ".*, .*, 1, .*" "${file}" > "${file}".write || log "no write logged in ${file}"
+done
+# Display fio results
+cat "$FIO_OUTPUT_FILE" || die "missing output file"
+
+# Extract json output from fio output file
+beg_pos=`grep -E '^{$' -n "$FIO_OUTPUT_FILE" | cut -f1 -d:`
+end_pos=`grep -E '^}$' -n "$FIO_OUTPUT_FILE" | cut -f1 -d:`
+head -n "$end_pos" "$FIO_OUTPUT_FILE" | tail -n +"$beg_pos" > "$FIO_JSON_OUTPUT_FILE"
+
+# Upload all fio output files to fio viewer
+if [[ -n "$FIO_RESULT_UPLOAD_URL" ]]; then
+    CURL_FILE_ARGS=$(ls "${FIO_PREFIX}"* | xargs --no-run-if-empty -I FILE -n1 \
+    echo -F FILE=@FILE | xargs)
+    if [[ -n "$CURL_FILE_ARGS" ]]; then
+        # Didn`t use a built in curl retry
+        # because of weak error code implementation
+        for i in {0..3}; do
+            $CURL \
+                --fail \
+                --write-out  "\ntotal_upload_time: %{time_total} s\n"`
+                `"total_upload_size: %{size_upload} B\n"`
+                `"averge_speed: %{speed_upload} B/s\n"  \
+                $CURL_FILE_ARGS \
+                "${FIO_RESULT_UPLOAD_URL}" && break \
+                || log "Failed to upload fio results" && sleep 20
+        done
+    fi
+fi
+
+# Delete temp dir
+cleanup

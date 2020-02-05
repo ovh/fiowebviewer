@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Fio Web Viewer result browser -- {{fio_result.fio_name}} ( {% for tag in fio_result.tags_list %} {{tag}}{% endfor %} ) {% endblock %}
+{% block style %}
+    <style>
+        .fio-plot {
+            display: inline-block;
+        }
+        .job-select{
+            position: fixed;
+        }
+        .plot-container {
+            white-space: nowrap;
+        }
+    </style>
+{% endblock %}
+{% block content %}
+    <nav id="navbar" class="navbar navbar-default">
+        <h5>{{fio_result.fio_name}} ({% for tag in fio_result.tags_list %} {{tag}}{% endfor %} )</h5>
+        <ul class="navbar-nav">
+            <li><a href="/">Index</a></li>
+            <li class="links">
+                <ul>
+                    <li>
+                        <ul>
+                            <li>Plots:</li>
+                            {% for log in fio_result.group_reports[0].jobs[0].logs %}
+                                <li><a class="btn btn-xs" href="#plot{{log.log_type}}">{{log.log_type}}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+            <li><a href="/summary/{{fio_result.dir_name}}">Switch to summary</a></li>
+            <li><button type="button" id="bn-fio-reset" class="btn btn-xs">Reset zoom</button></li>
+        </ul>
+    </nav>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-12 col-md-2 col-lg-2">
+                <div class="job-select">
+                        <p>Select Job`s</p>
+                        <ul>
+                    {% for fio_group_report in fio_result.group_reports %}
+                        <li>{{fio_group_report.jobname}}</li>
+                        <ul>
+                        {% for job in fio_group_report.jobs %}
+                            <li>
+                                <input type="checkbox" class="job_id" value="{{job.job_id}}">Job:{{job.job_id}}<br>
+                            </li>
+                        {% endfor %}
+                        </ul>
+                    {% endfor %}
+                    </ul>
+                </div>
+             </div>
+             <div class="col-sm-12 col-md-10 col-lg-10">
+             <div class="fio-plot-container">
+             {% for log in fio_result.group_reports[0].jobs[0].logs %}
+             <div id="plot{{log.log_type}}wrapper">
+                     <div id="plot{{log.log_type}}"></div>
+                     <div id="plot{{log.log_type}}loader" style="display:none" class="plot-loader">Loading {{log.log_type}}...<div class="loader"></div></div>
+                     <div id="plot{{log.log_type}}error" style="display:none" class="plot-loader">Cannot load {{log.log_type}}</div>
+                 </div>
+             {% endfor %}
+             </div>
+         </div>
+    </div>
+    <script>
+    $( "#bn-fio-userargs" ).click(function() {
+      $( "#fio-userargs" ).toggle();
+    });
+    </script>
+    <script>
+    $( "#bn-fio-output" ).click(function() {
+      $( "#fio-output" ).toggle();
+    });
+    </script>
+    <script>
+        function selectJobs(selectedIds){
+            return function(job){
+                if(selectedIds.includes(job.id)) return job;
+            }
+        }
+        var jobs_id_selected = [];
+        var results = ["{{fio_result}}"];
+        startPlotting("detailed");
+        $(document).ready(function(){
+            $('.job_id').change(function() {
+                if (this.checked){
+                    jobs_id_selected.push(this.value);
+                    var jobsFiltered = listOfJobs.filter(selectJobs(jobs_id_selected));
+                    drawAllPlotsDetailed(undefined, 0, rmax, listOfResults, jobsFiltered);
+                } else{
+                    var index = jobs_id_selected.indexOf(this.value);
+                    jobs_id_selected.splice(index, 1);
+                    var jobsFiltered = listOfJobs.filter(selectJobs(jobs_id_selected));
+                    drawAllPlotsDetailed(undefined, 0, rmax, listOfResults, jobsFiltered);
+                }
+            });
+        });
+    </script>
+{% endblock %}

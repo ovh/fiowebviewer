@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Fio Web Viewer result browser{% endblock %}
+{% block content %}
+    <form action="/compare" method="get">
+    <nav id="navbar" class="navbar navbar-default">
+        <ul class="navbar-nav">
+            <li><a href="/">Index</a></li>
+            <li class="button"><input type="submit" name="compare" value="Compare selected" class="submit-btn"></li>
+            <li class="button"><button type="button" id="bn-fio-delete-show" class="submit-btn">Delete Selected</button></li>
+            <li><a href="/fio-webviewer.sh">Download script</a></li>
+            <li class="button"><input value="{{ request.url }}fio-webviewer.sh" readonly onclick="this.select()" width="60px"></input></li>
+        </ul>
+    </nav>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-xs-12"><h3>Results:</h3></div>
+        </div>
+        <div class="row">
+            <div class="col-xs-12 fio-results">
+                <ul>
+                {% for fio_result in fio_results|sort(reverse=True, attribute='upload_date') %}
+                <li><input type="checkbox" name="result" value="{{fio_result.dir_name}}">
+                            <a href="summary/{{fio_result.dir_name}}">
+                                {{fio_result.fio_name}}
+                            </a>
+                           {% for tag in fio_result.tags_list %}
+                            <button type="button" class="btn btn-xs">{{ tag}}</button>
+                           {% endfor %}
+                    </li>
+                {% endfor %}
+                </ul>
+            </div>
+            <div id="fio-delete" style="display: none; position: fixed; top: 50px; left: 42%; width: 200px; height: 100px; background-color: rgb(255, 255, 255); border: 1px solid #999; border-radius: 7px;">
+                <div style="text-align: center;">
+                    <p>
+                        <p>Are you sure?</p>
+                    </p>
+                    <p>
+                        <input type="submit" name="delete" value="Yes" class="submit-btn">
+                        <button type="button" id="bn-fio-delete-hide" class="submit-btn">No</button>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    </form>
+    <script>
+        $(document).ready(function(){
+
+            $( "#bn-fio-delete-show" ).click(function() {
+                $( "#fio-delete" ).show();
+            });
+
+            $( "#bn-fio-delete-hide" ).click(function() {
+                $( "#fio-delete" ).hide();
+            });
+        });
+    </script>
+{% endblock %}

@@ -1,0 +1,7 @@
+*.sw[p-z]
+*.pyc
+*.egg-info/
+.cache/
+.ropeproject/
+build/
+dist/
