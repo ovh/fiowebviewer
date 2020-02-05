@@ -37,13 +37,25 @@ Web interface has fio results listed on the main page with their name and
  with tags. The user is able to click on a particular fio run to view their
  details including plots for aggregated jobs, fio command line arguments
  and summary about the particular run.
+ 
+ Main page:
+ 
+ ![Fio web viewer index page](docs/static/images/index.jpg)
 
 The data granularity on the plots is automatically scaled. User is able to
  zoom the plots.
+ 
+ Result page:
+ 
+ ![Fio web viewer result page](docs/static/images/fio_result_view.jpg)
 
 The user can select several fio runs and click the Compare button.
  The comparison page will be displayed, where the summary of compared
  and aggregated runs is displayed on the same plots.
+ 
+ Compare page:
+ 
+ ![Fio web viewer comparision page](docs/static/images/comparision_view.jpg)
 
 # Installation
 
