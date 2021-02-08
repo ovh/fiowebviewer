@@ -18,7 +18,7 @@ from flask import (
 )
 from jinja2 import UndefinedError
 from sqlalchemy.orm.exc import NoResultFound
-from werkzeug import secure_filename
+from werkzeug.utils import secure_filename
 
 from fiowebviewer.engine.database import (
     DBSession,
